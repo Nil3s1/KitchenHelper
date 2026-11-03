@@ -13,7 +13,10 @@ Follow the system boundaries and technology decisions in the [architecture instr
 - Keep contexts as independent Go packages. A context must not import another context's package or internal implementation.
 - Keep a context's files in a flat package while it remains understandable; split packages only when a clear package boundary improves ownership or dependency direction.
 - Follow idiomatic Go naming and visibility. File prefixes below are repository conventions for readability, not substitutes for package boundaries.
-- Keep process startup and application-wide composition in `cmd/<entrypoint>/`; keep context-local dependency wiring in `module.go`.
+- Export the context's application entry point and the command inputs and result types required to call it from other permitted backend packages. Keep implementation handlers, repository ports, persistence types, and transport DTOs unexported unless an actual external consumer requires them. Exported JSON fields alone do not make an unexported type a usable public API.
+- Keep process startup and application-wide composition in `cmd/<entrypoint>/`; keep context-local dependency wiring and its small public application facade in `module.go`.
+- A context must remain callable without HTTP or MCP. Use a public application API such as `NewModule(db) *Module` with context-aware operations; do not make an `http.Handler` the context's only public entry point.
+- Exposing an application API does not permit direct context-to-context imports. Go's `internal/` visibility and the architecture's context-isolation rules still apply.
 
 ## 2. File Naming Conventions
 
@@ -21,13 +24,15 @@ Use these prefixes for files in a flat context package:
 
 - `dom_*.go`: Domain entities, value objects, invariants, and domain-owned contracts.
 - `app_cmd_<action>_<entity>.go`: A write use case and its input/handler.
-- `app_qry_<action>_<entity>.go`: A read use case and its query DTO/handler.
+- `app_command.go`: Shared command inputs/mapping and application-owned command ports, including a context-local Unit of Work when needed.
+- `app_query.go`: Related query ports and shared read-model DTOs. Do not hide shared declarations in one individual query's file; split ports and models into focused files only when their size warrants it.
+- `app_qry_<action>_<entity>.go`: A read use case with application behavior that warrants a handler, such as authorization or orchestration; not a mandatory file per read operation.
 - `inf_repo_pg_*_command.go`: PostgreSQL command-side persistence adapters and database-specific models.
 - `inf_repo_pg_*_query.go`: PostgreSQL query-side persistence adapters and query projections.
 - `inf_repo_sqlite_*.go`: SQLite adapters, only when that database is implemented.
 - `inf_handler_http_*.go`: HTTP transport adapters and transport DTOs.
 - `inf_handler_mcp_*.go`: MCP transport adapters, when required.
-- `module.go`: Context-local dependency wiring.
+- `module.go`: Context-local dependency wiring and public application methods. Keep transport setup in the owning adapter file.
 
 Do not create placeholder files or adapters for technologies that are not in use.
 
@@ -39,30 +44,36 @@ Do not create placeholder files or adapters for technologies that are not in use
 - Map transport input to application input and application results to transport output at explicit boundaries.
 - Command use cases should create or load domain aggregates when needed to enforce business invariants, then persist them through command-side ports.
 - Query use cases should retrieve purpose-built query DTOs/projections directly from query-side ports. Do not load and map domain aggregates for a read that does not invoke domain behavior.
-- Define query DTOs with the fields and shape the read use case needs. When the query is specific to one transport and the API contract matches, the query DTO may also serve as that transport's response type; otherwise map it at the transport boundary.
+- For a simple read with no application orchestration, the public application method may delegate directly to a query port. Transport adapters call the application API, not repositories or implementation handlers. Keep SQL and concrete persistence dependencies out of transport adapters; do not add a query handler or query-input type solely to forward a method call.
+- Keep application operations independent of request/response transport types. HTTP, MCP, and direct Go callers use the same operations so that domain validation, transactions, and any application policies cannot be bypassed by choosing another transport.
+- Expose transport integration separately, for example `Module.HTTPHandler() http.Handler` implemented in the HTTP adapter file. Creating a module or obtaining a handler must not start a server. Do not add a transport adapter until it is needed.
+- Use an ordinary DTO slice for a list unless a separate result type adds metadata or meaningful behavior.
+- Define public query DTOs with the fields and shape application callers need. A DTO may also serve as a transport response when the contracts match; otherwise map it at the transport boundary.
 - Map domain aggregates to persistence models and back for command-side operations that need domain behavior. Query-side persistence should project directly into its DTO and must not perform an unnecessary persistence-to-domain-to-DTO round trip.
 - Keep domain types free of serialization and database tags. Put transport serialization details on transport-facing DTOs and database-specific representations on persistence models; a query DTO intentionally used as a transport response is transport-facing.
 
 ## 4. Application Ports and Adapters
 
 - Application use cases coordinate domain behavior and express required external capabilities through interfaces (ports).
-- Define repository contracts centrally within their owning context, not separately inside each use case. Keep the aggregate-oriented command repository contract with the domain and the query repository contract with the application read model. Other external-service ports normally belong to the application layer.
+- Define ports within their owning context at the layer that consumes them. Application repository and transaction contracts belong in application files, not domain files merely because they return aggregates. Keep shared ports in clearly named common files; a genuinely consumer-specific port may live with its use case.
 - Infrastructure adapters implement those interfaces. Application code must not depend on concrete database, network, or transport implementations.
-- Define one complete command repository interface and one complete query repository interface per bounded context. Each contains all persistence methods needed across that context's respective write or read use cases. Do not fragment repositories into per-use-case or single-method interfaces, adapter types, or files.
+- Keep interfaces focused on implemented consumer needs. Related operations may share a command or query repository interface; use narrower interfaces when consumers have meaningfully different needs. Neither a complete context-wide interface nor an interface per use case is mandatory. One adapter can satisfy multiple interfaces without duplicate implementations.
 - The command repository includes all operations needed by write workflows, including loading aggregates, existence checks, and concurrency checks as well as persistence. Command/query separation does not forbid reads required to perform a command correctly.
-- The query repository includes all required read operations, such as lookup by ID, listing, filtering, and projections. It returns query DTOs/projections rather than domain aggregates unless the read actually requires domain behavior.
-- Add methods when required by implemented behavior, not speculative CRUD completeness. Extend the existing repository for that side instead of introducing another small repository.
-- Inject the context's complete command repository into command handlers and its complete query repository into query handlers; do not wrap them in narrower repository interfaces for individual consumers.
+- Query ports return DTOs/projections for lookup, listing, filtering, and other implemented reads. Reads that actually need domain behavior should use an application use case with an appropriate aggregate-loading port instead.
+- Add methods when required by implemented behavior, not speculative CRUD completeness. Reuse an existing port when it remains cohesive; do not add redundant wrapper interfaces or duplicate adapters.
+- Inject repository ports into application handlers or the application facade. Transport adapters consume the public application API. Application behavior must not depend on concrete infrastructure; constructor wiring may choose concrete adapters.
+- Keep the public facade small and explicit: it delegates commands to their handlers and simple reads to query ports. These methods provide a stable caller-facing boundary, not a reason to duplicate handler logic or introduce another handler layer. Internal handlers need not be exported.
+- Database ownership stays with the caller that opens it. Module construction wires the existing connection without opening, closing, or taking ownership of it; make the selected persistence technology explicit rather than claiming the constructor is database-agnostic.
 - Keep command-side and query-side repositories logically distinct even when both use the same database, schema, table, or persistence technology. Their implementations may share a connection or low-level helpers. A shared physical database does not require a separate read database.
 - Separate read storage or projections are optional scaling/consistency choices, not prerequisites for command/query separation.
 - Keep transport-specific validation and decoding in the transport adapter; keep business invariants in the domain and enforce them for every use case.
-- Prefer one clear handler per distinct use case. Do not combine unrelated commands or queries into a large handler merely to reduce file count.
+- Keep a focused handler for use cases with application behavior. Do not combine unrelated use cases into a large handler, but do not require handlers that only forward arguments and results.
 
 ## 5. Transactions and Unit of Work
 
 - Use a transaction only when a use case needs atomic multi-operation behavior or transactional consistency/concurrency protection.
-- Keep a Unit of Work contract context-local because its repositories and transaction semantics are context-specific.
-- When a Unit of Work is needed, expose the context's complete command repository within the transaction scope, not a new per-use-case subset; never expose `sql.Tx` or another driver transaction type. Do not combine command and query repositories merely because they share a database.
+- Keep a Unit of Work contract application-owned and context-local because its repositories and transaction semantics are context-specific.
+- When a Unit of Work is needed, expose the command port needed by the transactional workflow within its scope; a cohesive shared command repository is appropriate when it fits. Never expose `sql.Tx` or another driver transaction type. Do not combine command and query repositories merely because they share a database.
 - A closure-based `Do(ctx, work)` API is a suitable Go option when it makes begin, commit, and rollback behavior explicit and reliable. It is not mandatory for use cases that need no transaction.
 - Ensure failed work rolls back, successful work commits, and rollback failures remain observable in error reporting.
 
@@ -94,6 +105,9 @@ Use `src/backend/internal/shared/` for context-independent backend behavior and 
 - Test application use cases through their ports, using small test doubles where useful.
 - Test command-side persistence mapping separately from database integration behavior.
 - Test query-side projections directly, including that query operations return the expected DTO without requiring domain aggregate mapping.
+- Test direct application API calls independently of transport setup, including domain validation, command results, query DTOs, context/parameter propagation, and error propagation.
+- Include tests from an external Go test package (`<context>_test`) to verify that the constructor, commands, results, and transport attachment are actually accessible to callers without relying on unexported identifiers.
+- For reads without application handlers, test transport routes through the same module API backed by a query-port test double: request context and parameters, response DTO/JSON shape, list ordering and empty arrays, and error mapping. Do not keep delegation-only tests for removed handlers.
 - Test shared packages independently of any bounded context; test context-specific mapping in the owning adapter.
 - Put tests requiring PostgreSQL, multiple contexts, or the complete running application under `tests/backend/` or the corresponding central `tests/` area.
 - Use test-first development where practical, while prioritizing meaningful behavioral coverage over prescribed test-writing order.

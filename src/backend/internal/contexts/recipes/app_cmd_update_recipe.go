@@ -13,15 +13,15 @@ type UpdateRecipeCommand struct {
 	Images      []string
 }
 
-type UpdateRecipeHandler struct {
+type updateRecipeHandler struct {
 	unitOfWork unitOfWork
 }
 
-func newUpdateRecipeHandler(unitOfWork unitOfWork) *UpdateRecipeHandler {
-	return &UpdateRecipeHandler{unitOfWork: unitOfWork}
+func newUpdateRecipeHandler(unitOfWork unitOfWork) *updateRecipeHandler {
+	return &updateRecipeHandler{unitOfWork: unitOfWork}
 }
 
-func (h *UpdateRecipeHandler) Handle(ctx context.Context, command UpdateRecipeCommand) (Recipe, error) {
+func (h *updateRecipeHandler) Handle(ctx context.Context, command UpdateRecipeCommand) (Recipe, error) {
 	var updated Recipe
 	err := h.unitOfWork.Do(ctx, func(ctx context.Context, repository recipeCommandRepository) error {
 		recipe, err := repository.getByID(ctx, command.ID)

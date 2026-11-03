@@ -34,9 +34,10 @@ func main() {
 	if address == "" {
 		address = ":8080"
 	}
+	recipesModule := recipes.NewModule(db)
 	server := &http.Server{
 		Addr:              address,
-		Handler:           recipes.NewModule(db),
+		Handler:           recipesModule.HTTPHandler(),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 

@@ -14,9 +14,51 @@ docker compose up --build
 - Recipes API: <http://localhost:8080/api/v1/recipes>
 - MinIO console: <http://localhost:9001> (`kitchenhelper` / `kitchenhelper-local`)
 
-The database migrator runs after PostgreSQL becomes healthy and before the backend starts. Nginx serves the frontend and proxies `/api/` requests to the backend. The backend applies Recipes use cases and reads/writes PostgreSQL through context-owned adapters.
+The database migrator runs after PostgreSQL becomes healthy and before the backend starts. Nginx serves the frontend and proxies `/api/` requests to the backend. The backend exposes a Recipes application API independently of HTTP. Its command methods delegate to use-case handlers; simple reads return DTOs through an injected query port without pass-through query handlers. Shared application contracts live in `app_command.go` and `app_query.go`; the context remains one flat Go package.
 
 Recipe image references are stored in the `images` array; MinIO is available as the local S3-compatible storage service, but application uploads and asset retrieval are not yet wired to it.
+
+## Recipes application API
+
+`recipes.NewModule(db)` returns a `*recipes.Module`, not an HTTP handler. It wires PostgreSQL adapters to the application operations without starting a server. The caller opens and closes the database connection.
+
+| Method | Input | Result |
+| --- | --- | --- |
+| `AddRecipe` | `context.Context`, `AddRecipeCommand` | `Recipe`, `error` |
+| `UpdateRecipe` | `context.Context`, `UpdateRecipeCommand` | `Recipe`, `error` |
+| `GetRecipe` | `context.Context`, recipe ID | `RecipeReadModel`, `error` |
+| `ListRecipes` | `context.Context` | `[]RecipeReadModel`, `error` |
+| `HTTPHandler` | none | `http.Handler` |
+
+For example, code within the backend module can call the application directly:
+
+```go
+func addSoup(ctx context.Context, db *sql.DB) (recipes.Recipe, error) {
+    module := recipes.NewModule(db)
+    return module.AddRecipe(ctx, recipes.AddRecipeCommand{
+        Name: "Suppe",
+        Ingredients: []recipes.IngredientInput{
+            {Name: "Salz", Amount: 1, Unit: "g"},
+        },
+    })
+}
+```
+
+The snippet uses `context`, `database/sql`, and `kitchenhelper/backend/internal/contexts/recipes`. Direct calls return application errors such as `recipes.ErrValidation` and `recipes.ErrNotFound`, which callers can inspect with `errors.Is`. Successful commands return domain values; reads return DTOs without loading domain aggregates.
+
+HTTP is attached separately:
+
+```go
+module := recipes.NewModule(db)
+server := &http.Server{
+    Addr:    ":8080",
+    Handler: module.HTTPHandler(),
+}
+```
+
+Obtaining the handler does not start the server; the API entrypoint handles startup and shutdown. HTTP decoding and error/status mapping remain in the HTTP adapter. A future MCP adapter can call the same application methods directly without making HTTP requests; no MCP adapter is currently implemented.
+
+The public API remains subject to Go's `internal/` import restrictions and the architecture's prohibition on direct bounded-context imports. It is not a standalone library for unrelated Go modules. PostgreSQL repository implementations and transaction details remain private; the current constructor deliberately selects PostgreSQL, not an arbitrary database.
 
 ## Development checks
 

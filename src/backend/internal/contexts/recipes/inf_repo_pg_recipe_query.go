@@ -34,7 +34,7 @@ func (r *postgresQueryRepository) getByID(ctx context.Context, id string) (Recip
 	return readModelFromPersistence(readModel.ID, readModel.CreatedAt, readModel.UpdatedAt, payload)
 }
 
-func (r *postgresQueryRepository) getAll(ctx context.Context) (GetAllRecipesReadModel, error) {
+func (r *postgresQueryRepository) getAll(ctx context.Context) ([]RecipeReadModel, error) {
 	rows, err := r.db.QueryContext(
 		ctx,
 		`SELECT id, created_at, updated_at, payload FROM recipes.recipes ORDER BY created_at DESC, id`,
@@ -44,7 +44,7 @@ func (r *postgresQueryRepository) getAll(ctx context.Context) (GetAllRecipesRead
 	}
 	defer rows.Close()
 
-	readModels := make(GetAllRecipesReadModel, 0)
+	readModels := make([]RecipeReadModel, 0)
 	for rows.Next() {
 		var readModel RecipeReadModel
 		var payload []byte

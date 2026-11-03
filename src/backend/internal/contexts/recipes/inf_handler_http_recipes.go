@@ -10,24 +10,18 @@ import (
 )
 
 type httpHandler struct {
-	addRecipeHandler    *AddRecipeHandler
-	updateRecipeHandler *UpdateRecipeHandler
-	getByIDHandler      *GetByIDRecipeHandler
-	getAllHandler       *GetAllRecipesHandler
+	application *Module
 }
 
-func newHTTPHandler(
-	addRecipe *AddRecipeHandler,
-	updateRecipe *UpdateRecipeHandler,
-	getByID *GetByIDRecipeHandler,
-	getAll *GetAllRecipesHandler,
-) *httpHandler {
-	return &httpHandler{
-		addRecipeHandler:    addRecipe,
-		updateRecipeHandler: updateRecipe,
-		getByIDHandler:      getByID,
-		getAllHandler:       getAll,
-	}
+func newHTTPHandler(application *Module) *httpHandler {
+	return &httpHandler{application: application}
+}
+
+// HTTPHandler exposes the application API through HTTP without starting a server.
+func (m *Module) HTTPHandler() http.Handler {
+	mux := http.NewServeMux()
+	newHTTPHandler(m).registerRoutes(mux)
+	return mux
 }
 
 func (h *httpHandler) registerRoutes(mux *http.ServeMux) {
@@ -47,7 +41,7 @@ func (h *httpHandler) add(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid JSON body")
 		return
 	}
-	created, err := h.addRecipeHandler.Handle(r.Context(), addCommandFromRequest(request))
+	created, err := h.application.AddRecipe(r.Context(), addCommandFromRequest(request))
 	if err != nil {
 		writeCommandError(w, err)
 		return
@@ -56,7 +50,7 @@ func (h *httpHandler) add(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *httpHandler) getByID(w http.ResponseWriter, r *http.Request) {
-	recipe, err := h.getByIDHandler.Handle(r.Context(), GetByIDRecipeQuery{ID: r.PathValue("id")})
+	recipe, err := h.application.GetRecipe(r.Context(), r.PathValue("id"))
 	if err != nil {
 		writeQueryError(w, err)
 		return
@@ -65,7 +59,7 @@ func (h *httpHandler) getByID(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *httpHandler) getAll(w http.ResponseWriter, r *http.Request) {
-	recipes, err := h.getAllHandler.Handle(r.Context(), GetAllRecipesQuery{})
+	recipes, err := h.application.ListRecipes(r.Context())
 	if err != nil {
 		writeQueryError(w, err)
 		return
@@ -83,7 +77,7 @@ func (h *httpHandler) update(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid JSON body")
 		return
 	}
-	updated, err := h.updateRecipeHandler.Handle(r.Context(), updateCommandFromRequest(r.PathValue("id"), request))
+	updated, err := h.application.UpdateRecipe(r.Context(), updateCommandFromRequest(r.PathValue("id"), request))
 	if err != nil {
 		writeCommandError(w, err)
 		return

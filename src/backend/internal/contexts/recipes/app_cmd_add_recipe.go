@@ -12,21 +12,15 @@ type AddRecipeCommand struct {
 	Images      []string
 }
 
-type IngredientInput struct {
-	Name   string
-	Amount float64
-	Unit   string
-}
-
-type AddRecipeHandler struct {
+type addRecipeHandler struct {
 	repository recipeCommandRepository
 }
 
-func newAddRecipeHandler(repository recipeCommandRepository) *AddRecipeHandler {
-	return &AddRecipeHandler{repository: repository}
+func newAddRecipeHandler(repository recipeCommandRepository) *addRecipeHandler {
+	return &addRecipeHandler{repository: repository}
 }
 
-func (h *AddRecipeHandler) Handle(ctx context.Context, command AddRecipeCommand) (Recipe, error) {
+func (h *addRecipeHandler) Handle(ctx context.Context, command AddRecipeCommand) (Recipe, error) {
 	recipe, err := newRecipe(
 		command.Name,
 		command.Description,
@@ -43,16 +37,4 @@ func (h *AddRecipeHandler) Handle(ctx context.Context, command AddRecipeCommand)
 		return Recipe{}, err
 	}
 	return recipe, nil
-}
-
-func ingredientsFromInput(inputs []IngredientInput) []Ingredient {
-	ingredients := make([]Ingredient, 0, len(inputs))
-	for _, input := range inputs {
-		ingredients = append(ingredients, Ingredient{
-			Name:   input.Name,
-			Amount: input.Amount,
-			Unit:   input.Unit,
-		})
-	}
-	return ingredients
 }
