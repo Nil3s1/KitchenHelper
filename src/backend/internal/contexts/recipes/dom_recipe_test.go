@@ -4,8 +4,6 @@ import (
 	"errors"
 	"reflect"
 	"testing"
-
-	"kitchenhelper/backend/internal/shared"
 )
 
 func TestNewRecipeCreatesValidVersionOneAggregate(t *testing.T) {
@@ -54,7 +52,7 @@ func TestRecipeValidateEnforcesDomainRules(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			if err := test.recipe.validate(); !errors.Is(err, shared.ErrValidation) {
+			if err := test.recipe.validate(); !errors.Is(err, ErrValidation) {
 				t.Fatalf("validate() error = %v, want validation error", err)
 			}
 		})

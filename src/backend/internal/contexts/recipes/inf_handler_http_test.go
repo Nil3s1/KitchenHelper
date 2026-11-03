@@ -5,8 +5,6 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
-
-	"kitchenhelper/backend/internal/shared"
 )
 
 func TestDecodeRecipeRequestRequiresIngredientAmount(t *testing.T) {
@@ -17,7 +15,7 @@ func TestDecodeRecipeRequestRequiresIngredientAmount(t *testing.T) {
 	)
 
 	_, err := decodeRecipeRequest(httptest.NewRecorder(), request)
-	if !errors.Is(err, shared.ErrValidation) {
+	if !errors.Is(err, ErrValidation) {
 		t.Fatalf("decodeRecipeRequest() error = %v, want validation error", err)
 	}
 }

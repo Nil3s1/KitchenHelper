@@ -1,6 +1,6 @@
 ---
 description: "Language-neutral business rules and invariants for the Recipes bounded context."
-applyTo: "src/backend/internal/contexts/recipes/**, src/frontend/src/contexts/recipes/**"
+applyTo: "src/backend/internal/contexts/recipes/**, src/frontend/src/contexts/recipes/**, src/database/migrations/*_recipes_*.sql, tests/backend/contexts/recipes/**, tests/frontend/contexts/recipes/**, tests/database/**/*recipes*"
 ---
 
 # Recipes Domain Rules

@@ -19,38 +19,30 @@ type IngredientInput struct {
 }
 
 type AddRecipeHandler struct {
-	unitOfWork unitOfWork
+	repository recipeCreateRepository
 }
 
-func newAddRecipeHandler(unitOfWork unitOfWork) *AddRecipeHandler {
-	return &AddRecipeHandler{unitOfWork: unitOfWork}
+func newAddRecipeHandler(repository recipeCreateRepository) *AddRecipeHandler {
+	return &AddRecipeHandler{repository: repository}
 }
 
 func (h *AddRecipeHandler) Handle(ctx context.Context, command AddRecipeCommand) (Recipe, error) {
-	var created Recipe
-	err := h.unitOfWork.Do(ctx, func(ctx context.Context, repositories recipeRepositories) error {
-		recipe, err := newRecipe(
-			command.Name,
-			command.Description,
-			command.Author,
-			command.Text,
-			command.Tags,
-			ingredientsFromInput(command.Ingredients),
-			command.Images,
-		)
-		if err != nil {
-			return err
-		}
-		if err := repositories.create(ctx, recipe); err != nil {
-			return err
-		}
-		created = recipe
-		return nil
-	})
+	recipe, err := newRecipe(
+		command.Name,
+		command.Description,
+		command.Author,
+		command.Text,
+		command.Tags,
+		ingredientsFromInput(command.Ingredients),
+		command.Images,
+	)
 	if err != nil {
 		return Recipe{}, err
 	}
-	return created, nil
+	if err := h.repository.create(ctx, recipe); err != nil {
+		return Recipe{}, err
+	}
+	return recipe, nil
 }
 
 func ingredientsFromInput(inputs []IngredientInput) []Ingredient {

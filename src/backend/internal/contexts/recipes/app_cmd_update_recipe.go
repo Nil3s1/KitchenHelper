@@ -23,8 +23,8 @@ func newUpdateRecipeHandler(unitOfWork unitOfWork) *UpdateRecipeHandler {
 
 func (h *UpdateRecipeHandler) Handle(ctx context.Context, command UpdateRecipeCommand) (Recipe, error) {
 	var updated Recipe
-	err := h.unitOfWork.Do(ctx, func(ctx context.Context, repositories recipeRepositories) error {
-		recipe, err := repositories.getByID(ctx, command.ID)
+	err := h.unitOfWork.Do(ctx, func(ctx context.Context, repository recipeUpdateRepository) error {
+		recipe, err := repository.getByID(ctx, command.ID)
 		if err != nil {
 			return err
 		}
@@ -39,7 +39,7 @@ func (h *UpdateRecipeHandler) Handle(ctx context.Context, command UpdateRecipeCo
 		); err != nil {
 			return err
 		}
-		if err := repositories.update(ctx, recipe); err != nil {
+		if err := repository.update(ctx, recipe); err != nil {
 			return err
 		}
 		updated = recipe

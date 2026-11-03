@@ -4,19 +4,15 @@ import (
 	"encoding/json"
 	"testing"
 	"time"
-
-	"kitchenhelper/backend/internal/shared"
 )
 
 func TestPersistenceMappingRoundTripsRecipe(t *testing.T) {
 	createdAt := time.Date(2026, 11, 3, 10, 0, 0, 0, time.UTC)
 	updatedAt := createdAt.Add(time.Minute)
 	original := Recipe{
-		DomainModel: shared.DomainModel{
-			ID:        "recipe-id",
-			CreatedAt: createdAt,
-			UpdatedAt: updatedAt,
-		},
+		ID:          "recipe-id",
+		CreatedAt:   createdAt,
+		UpdatedAt:   updatedAt,
 		Name:        "Suppe",
 		Description: "Einfach",
 		Author:      "Ada",

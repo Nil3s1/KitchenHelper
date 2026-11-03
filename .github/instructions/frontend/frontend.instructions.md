@@ -5,7 +5,7 @@ applyTo: "src/frontend/**, tests/frontend/**"
 
 # Frontend Instructions
 
-The architectural principles in `../architecture/architecture.instructions.md` are language-neutral. This file applies them to the current TypeScript, React, and Redux Toolkit frontend.
+Follow the system boundaries and technology decisions in the [architecture instructions](../architecture/architecture.instructions.md). This file defines frontend-specific implementation conventions. Business invariants belong in the owning context's [domain instructions](../domain/).
 
 ## 1. Feature and Context Ownership
 
@@ -44,7 +44,14 @@ Add folders when the context needs them; do not create empty structural placehol
 - Keep Redux slices, async actions, selectors, and related state types within their owning context.
 - Keep API request functions in the owning context's `api/` area and surface user-visible failures through the established UI state and error handling.
 
-## 5. Tests
+## 5. Build and Serving
+
+- Keep frontend dependencies and existing build scripts in `src/frontend/package.json`.
+- Keep `src/frontend/Dockerfile` a multi-stage build: compile the SPA using the configured TypeScript/Vite tooling, then serve static assets with Nginx.
+- Keep SPA route fallback and the `/api/` backend proxy in `src/frontend/nginx.conf`. Use same-origin API paths rather than hard-coding local backend hosts into client code.
+- Frontend assets are public; do not embed secrets in client configuration or build-time variables.
+
+## 6. Tests
 
 - Keep focused frontend unit/component tests close to the context code where the test tooling supports it.
 - Put cross-context or browser-level end-to-end tests under `tests/frontend/`.

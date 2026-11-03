@@ -5,8 +5,6 @@ import (
 	"math"
 	"strings"
 	"time"
-
-	"kitchenhelper/backend/internal/shared"
 )
 
 type Ingredient struct {
@@ -16,7 +14,9 @@ type Ingredient struct {
 }
 
 type Recipe struct {
-	shared.DomainModel
+	ID          string
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
 	Name        string
 	Description string
 	Author      string
@@ -54,10 +54,8 @@ func newRecipe(name, description, author, text string, tags []string, ingredient
 
 func (r *Recipe) replace(name, description, author, text string, tags []string, ingredients []Ingredient, images []string) error {
 	replacement := Recipe{
-		DomainModel: shared.DomainModel{
-			ID:        r.ID,
-			CreatedAt: r.CreatedAt,
-		},
+		ID:          r.ID,
+		CreatedAt:   r.CreatedAt,
 		Name:        name,
 		Description: description,
 		Author:      author,
@@ -77,23 +75,23 @@ func (r *Recipe) replace(name, description, author, text string, tags []string, 
 
 func (r Recipe) validate() error {
 	if strings.TrimSpace(r.Name) == "" {
-		return fmt.Errorf("%w: recipe name must not be empty", shared.ErrValidation)
+		return fmt.Errorf("%w: recipe name must not be empty", ErrValidation)
 	}
 	ingredientNames := make(map[string]struct{}, len(r.Ingredients))
 	for _, ingredient := range r.Ingredients {
 		name := strings.TrimSpace(ingredient.Name)
 		if name == "" {
-			return fmt.Errorf("%w: ingredient name must not be empty", shared.ErrValidation)
+			return fmt.Errorf("%w: ingredient name must not be empty", ErrValidation)
 		}
 		if strings.TrimSpace(ingredient.Unit) == "" {
-			return fmt.Errorf("%w: ingredient unit must not be empty", shared.ErrValidation)
+			return fmt.Errorf("%w: ingredient unit must not be empty", ErrValidation)
 		}
 		if math.IsNaN(ingredient.Amount) || math.IsInf(ingredient.Amount, 0) || ingredient.Amount < 0 {
-			return fmt.Errorf("%w: ingredient amount must be a finite non-negative number", shared.ErrValidation)
+			return fmt.Errorf("%w: ingredient amount must be a finite non-negative number", ErrValidation)
 		}
 		normalizedName := strings.ToLower(name)
 		if _, exists := ingredientNames[normalizedName]; exists {
-			return fmt.Errorf("%w: ingredient names must be unique within a recipe", shared.ErrValidation)
+			return fmt.Errorf("%w: ingredient names must be unique within a recipe", ErrValidation)
 		}
 		ingredientNames[normalizedName] = struct{}{}
 	}

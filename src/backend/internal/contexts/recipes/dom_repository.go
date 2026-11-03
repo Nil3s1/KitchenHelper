@@ -2,21 +2,15 @@ package recipes
 
 import "context"
 
-type recipeReadRepository interface {
-	getByID(context.Context, string) (Recipe, error)
-	getAll(context.Context) ([]Recipe, error)
+type recipeCreateRepository interface {
+	create(context.Context, Recipe) error
 }
 
-type recipeWriteRepository interface {
-	create(context.Context, Recipe) error
+type recipeUpdateRepository interface {
+	getByID(context.Context, string) (Recipe, error)
 	update(context.Context, Recipe) error
 }
 
-type recipeRepositories interface {
-	recipeReadRepository
-	recipeWriteRepository
-}
-
 type unitOfWork interface {
-	Do(context.Context, func(context.Context, recipeRepositories) error) error
+	Do(context.Context, func(context.Context, recipeUpdateRepository) error) error
 }

@@ -29,42 +29,18 @@ type RecipeReadModel struct {
 	Images      []string               `json:"images"`
 }
 
-type GetByIDRecipeHandler struct {
-	repository recipeReadRepository
+type getByIDRecipeRepository interface {
+	getByID(context.Context, string) (RecipeReadModel, error)
 }
 
-func newGetByIDRecipeHandler(repository recipeReadRepository) *GetByIDRecipeHandler {
+type GetByIDRecipeHandler struct {
+	repository getByIDRecipeRepository
+}
+
+func newGetByIDRecipeHandler(repository getByIDRecipeRepository) *GetByIDRecipeHandler {
 	return &GetByIDRecipeHandler{repository: repository}
 }
 
 func (h *GetByIDRecipeHandler) Handle(ctx context.Context, query GetByIDRecipeQuery) (RecipeReadModel, error) {
-	recipe, err := h.repository.getByID(ctx, query.ID)
-	if err != nil {
-		return RecipeReadModel{}, err
-	}
-	return newRecipeReadModel(recipe), nil
-}
-
-func newRecipeReadModel(recipe Recipe) RecipeReadModel {
-	ingredients := make([]IngredientReadModel, 0, len(recipe.Ingredients))
-	for _, ingredient := range recipe.Ingredients {
-		ingredients = append(ingredients, IngredientReadModel{
-			Name:   ingredient.Name,
-			Amount: ingredient.Amount,
-			Unit:   ingredient.Unit,
-		})
-	}
-	return RecipeReadModel{
-		ID:          recipe.ID,
-		CreatedAt:   recipe.CreatedAt,
-		UpdatedAt:   recipe.UpdatedAt,
-		Name:        recipe.Name,
-		Description: recipe.Description,
-		Author:      recipe.Author,
-		Version:     recipe.Version,
-		Text:        recipe.Text,
-		Tags:        recipe.Tags,
-		Ingredients: ingredients,
-		Images:      recipe.Images,
-	}
+	return h.repository.getByID(ctx, query.ID)
 }

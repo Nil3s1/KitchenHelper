@@ -7,8 +7,6 @@ import (
 	"log"
 	"net/http"
 	"time"
-
-	"kitchenhelper/backend/internal/shared"
 )
 
 type httpHandler struct {
@@ -42,7 +40,7 @@ func (h *httpHandler) registerRoutes(mux *http.ServeMux) {
 func (h *httpHandler) add(w http.ResponseWriter, r *http.Request) {
 	request, err := decodeRecipeRequest(w, r)
 	if err != nil {
-		if errors.Is(err, shared.ErrValidation) {
+		if errors.Is(err, ErrValidation) {
 			writeCommandError(w, err)
 			return
 		}
@@ -78,7 +76,7 @@ func (h *httpHandler) getAll(w http.ResponseWriter, r *http.Request) {
 func (h *httpHandler) update(w http.ResponseWriter, r *http.Request) {
 	request, err := decodeRecipeRequest(w, r)
 	if err != nil {
-		if errors.Is(err, shared.ErrValidation) {
+		if errors.Is(err, ErrValidation) {
 			writeCommandError(w, err)
 			return
 		}
@@ -137,7 +135,7 @@ func decodeRecipeRequest(w http.ResponseWriter, r *http.Request) (recipeRequest,
 	}
 	for _, ingredient := range request.Ingredients {
 		if ingredient.Amount == nil {
-			return recipeRequest{}, shared.ErrValidation
+			return recipeRequest{}, ErrValidation
 		}
 	}
 	return request, nil
@@ -217,7 +215,7 @@ func decodeBody(w http.ResponseWriter, r *http.Request, destination any) error {
 }
 
 func writeCommandError(w http.ResponseWriter, err error) {
-	if errors.Is(err, shared.ErrValidation) {
+	if errors.Is(err, ErrValidation) {
 		writeError(w, http.StatusBadRequest, "recipe document violates validation rules")
 		return
 	}
@@ -225,7 +223,7 @@ func writeCommandError(w http.ResponseWriter, err error) {
 }
 
 func writeQueryError(w http.ResponseWriter, err error) {
-	if errors.Is(err, shared.ErrNotFound) {
+	if errors.Is(err, ErrNotFound) {
 		writeError(w, http.StatusNotFound, "recipe not found")
 		return
 	}

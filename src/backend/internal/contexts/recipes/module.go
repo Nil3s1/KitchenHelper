@@ -6,10 +6,11 @@ import (
 )
 
 func NewModule(db *sql.DB) http.Handler {
+	commandRepository := newPostgresCommandRepository(db)
 	unitOfWork := newPostgresUnitOfWork(db)
-	addRecipe := newAddRecipeHandler(unitOfWork)
+	addRecipe := newAddRecipeHandler(commandRepository)
 	updateRecipe := newUpdateRecipeHandler(unitOfWork)
-	readRepository := newPostgresRepository(db)
+	readRepository := newPostgresQueryRepository(db)
 	getByID := newGetByIDRecipeHandler(readRepository)
 	getAll := newGetAllRecipesHandler(readRepository)
 	handler := newHTTPHandler(addRecipe, updateRecipe, getByID, getAll)

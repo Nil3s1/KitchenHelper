@@ -7,17 +7,14 @@ import (
 	"errors"
 	"fmt"
 	"time"
-
-	"kitchenhelper/backend/internal/shared"
 )
 
 type sqlExecutor interface {
 	ExecContext(context.Context, string, ...any) (sql.Result, error)
-	QueryContext(context.Context, string, ...any) (*sql.Rows, error)
 	QueryRowContext(context.Context, string, ...any) *sql.Row
 }
 
-type postgresRepository struct {
+type postgresCommandRepository struct {
 	executor  sqlExecutor
 	lockReads bool
 }
@@ -44,14 +41,14 @@ type ingredientPayload struct {
 }
 
 type recipePersistenceModel struct {
-	ID        string        `db:"id"`
-	CreatedAt time.Time     `db:"created_at"`
-	UpdatedAt time.Time     `db:"updated_at"`
-	Payload   recipePayload `db:"payload"`
+	ID        string
+	CreatedAt time.Time
+	UpdatedAt time.Time
+	Payload   recipePayload
 }
 
-func newPostgresRepository(db *sql.DB) *postgresRepository {
-	return &postgresRepository{executor: db}
+func newPostgresCommandRepository(db *sql.DB) *postgresCommandRepository {
+	return &postgresCommandRepository{executor: db}
 }
 
 func newPostgresUnitOfWork(db *sql.DB) *postgresUnitOfWork {
@@ -60,7 +57,7 @@ func newPostgresUnitOfWork(db *sql.DB) *postgresUnitOfWork {
 
 func (u *postgresUnitOfWork) Do(
 	ctx context.Context,
-	work func(context.Context, recipeRepositories) error,
+	work func(context.Context, recipeUpdateRepository) error,
 ) (err error) {
 	tx, err := u.db.BeginTx(ctx, nil)
 	if err != nil {
@@ -76,8 +73,8 @@ func (u *postgresUnitOfWork) Do(
 		}
 	}()
 
-	repositories := &postgresRepository{executor: tx, lockReads: true}
-	if err = work(ctx, repositories); err != nil {
+	repository := &postgresCommandRepository{executor: tx, lockReads: true}
+	if err = work(ctx, repository); err != nil {
 		return err
 	}
 	if err = tx.Commit(); err != nil {
@@ -87,7 +84,7 @@ func (u *postgresUnitOfWork) Do(
 	return nil
 }
 
-func (r *postgresRepository) create(ctx context.Context, recipe Recipe) error {
+func (r *postgresCommandRepository) create(ctx context.Context, recipe Recipe) error {
 	model := persistenceFromDomain(recipe)
 	payload, err := json.Marshal(model.Payload)
 	if err != nil {
@@ -107,7 +104,7 @@ func (r *postgresRepository) create(ctx context.Context, recipe Recipe) error {
 	return nil
 }
 
-func (r *postgresRepository) update(ctx context.Context, recipe Recipe) error {
+func (r *postgresCommandRepository) update(ctx context.Context, recipe Recipe) error {
 	model := persistenceFromDomain(recipe)
 	payload, err := json.Marshal(model.Payload)
 	if err != nil {
@@ -128,61 +125,34 @@ func (r *postgresRepository) update(ctx context.Context, recipe Recipe) error {
 		return fmt.Errorf("check updated recipe: %w", err)
 	}
 	if affected == 0 {
-		return shared.ErrNotFound
+		return ErrNotFound
 	}
 	return nil
 }
 
-func (r *postgresRepository) getByID(ctx context.Context, id string) (Recipe, error) {
+func (r *postgresCommandRepository) getByID(ctx context.Context, id string) (Recipe, error) {
 	var model recipePersistenceModel
 	var payload []byte
 	query := `SELECT id, created_at, updated_at, payload FROM recipes.recipes WHERE id = $1`
 	if r.lockReads {
 		query += ` FOR UPDATE`
 	}
-	err := r.executor.QueryRowContext(
-		ctx,
-		query,
-		id,
-	).Scan(&model.ID, &model.CreatedAt, &model.UpdatedAt, &payload)
+	err := r.executor.QueryRowContext(ctx, query, id).Scan(
+		&model.ID,
+		&model.CreatedAt,
+		&model.UpdatedAt,
+		&payload,
+	)
 	if errors.Is(err, sql.ErrNoRows) {
-		return Recipe{}, shared.ErrNotFound
+		return Recipe{}, ErrNotFound
 	}
 	if err != nil {
-		return Recipe{}, fmt.Errorf("get recipe: %w", err)
+		return Recipe{}, fmt.Errorf("get recipe for command: %w", err)
 	}
 	if err := json.Unmarshal(payload, &model.Payload); err != nil {
 		return Recipe{}, fmt.Errorf("decode recipe payload: %w", err)
 	}
 	return domainFromPersistence(model), nil
-}
-
-func (r *postgresRepository) getAll(ctx context.Context) ([]Recipe, error) {
-	rows, err := r.executor.QueryContext(
-		ctx,
-		`SELECT id, created_at, updated_at, payload FROM recipes.recipes ORDER BY created_at DESC, id`,
-	)
-	if err != nil {
-		return nil, fmt.Errorf("list recipes: %w", err)
-	}
-	defer rows.Close()
-
-	recipes := make([]Recipe, 0)
-	for rows.Next() {
-		var model recipePersistenceModel
-		var payload []byte
-		if err := rows.Scan(&model.ID, &model.CreatedAt, &model.UpdatedAt, &payload); err != nil {
-			return nil, fmt.Errorf("scan recipe: %w", err)
-		}
-		if err := json.Unmarshal(payload, &model.Payload); err != nil {
-			return nil, fmt.Errorf("decode recipe payload: %w", err)
-		}
-		recipes = append(recipes, domainFromPersistence(model))
-	}
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("iterate recipes: %w", err)
-	}
-	return recipes, nil
 }
 
 func persistenceFromDomain(recipe Recipe) recipePersistenceModel {
@@ -221,11 +191,9 @@ func domainFromPersistence(model recipePersistenceModel) Recipe {
 		})
 	}
 	return Recipe{
-		DomainModel: shared.DomainModel{
-			ID:        model.ID,
-			CreatedAt: model.CreatedAt,
-			UpdatedAt: model.UpdatedAt,
-		},
+		ID:          model.ID,
+		CreatedAt:   model.CreatedAt,
+		UpdatedAt:   model.UpdatedAt,
 		Name:        model.Payload.Name,
 		Description: model.Payload.Description,
 		Author:      model.Payload.Author,

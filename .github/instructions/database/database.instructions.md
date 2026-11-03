@@ -5,7 +5,7 @@ applyTo: "src/database/**, tests/database/**"
 
 # Database and Migration Instructions
 
-The repository currently targets PostgreSQL and runs migrations with `golang-migrate`. These are technology-specific instructions; general ownership and bounded-context principles are defined in `../architecture/architecture.instructions.md`.
+Follow the system boundaries and technology decisions in the [architecture instructions](../architecture/architecture.instructions.md). This file defines PostgreSQL and Go migration-service conventions. Preserve the affected context's business semantics from its [domain instructions](../domain/) without treating storage representations as domain rules.
 
 ## 1. Schema Ownership
 
@@ -25,13 +25,19 @@ The repository currently targets PostgreSQL and runs migrations with `golang-mig
 - If a change cannot be safely reversed, document that limitation and its operational impact rather than providing a misleading rollback.
 - Preserve migration ordering and do not edit an already-applied migration to change deployed behavior; add a new migration instead.
 
-## 3. Validation and Tests
+## 3. Migration Runner and Container
+
+- Keep the Go migration entrypoint in `src/database/cmd/migrator/` and its dependencies in `src/database/go.mod`; use the approved `golang-migrate` tooling.
+- Keep `src/database/Dockerfile` a multi-stage Go build that includes the migration files in its runtime image.
+- Read the connection string from runtime configuration. Exit successfully when migrations are current and fail with an observable error when migration execution fails; do not start an application server from the migrator.
+
+## 4. Validation and Tests
 
 - Validate new migrations against the supported PostgreSQL version.
 - Test both applying migrations from an empty database and rolling back/reapplying where the migration and tool support it.
 - Put migration integration tests under `tests/database/`; do not rely solely on SQL inspection or unit tests for database behavior.
 - Keep database credentials and environment-specific connection settings outside committed migration files.
 
-## 4. Portability
+## 5. Portability
 
 SQLite is a future consideration, not a requirement for current PostgreSQL migrations. Avoid claiming portability unless the schema and every relevant query have been tested against the additional database.
