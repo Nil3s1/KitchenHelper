@@ -6,15 +6,16 @@ type GetAllRecipesQuery struct{}
 
 type GetAllRecipesReadModel []RecipeReadModel
 
-type getAllRecipesRepository interface {
+type recipeQueryRepository interface {
+	getByID(context.Context, string) (RecipeReadModel, error)
 	getAll(context.Context) (GetAllRecipesReadModel, error)
 }
 
 type GetAllRecipesHandler struct {
-	repository getAllRecipesRepository
+	repository recipeQueryRepository
 }
 
-func newGetAllRecipesHandler(repository getAllRecipesRepository) *GetAllRecipesHandler {
+func newGetAllRecipesHandler(repository recipeQueryRepository) *GetAllRecipesHandler {
 	return &GetAllRecipesHandler{repository: repository}
 }
 

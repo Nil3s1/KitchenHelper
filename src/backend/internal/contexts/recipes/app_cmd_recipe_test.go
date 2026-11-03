@@ -28,12 +28,12 @@ func (r *testRecipeCommandRepository) update(_ context.Context, recipe Recipe) e
 }
 
 type testUnitOfWork struct {
-	repository recipeUpdateRepository
+	repository recipeCommandRepository
 }
 
 func (u testUnitOfWork) Do(
 	ctx context.Context,
-	work func(context.Context, recipeUpdateRepository) error,
+	work func(context.Context, recipeCommandRepository) error,
 ) error {
 	return work(ctx, u.repository)
 }

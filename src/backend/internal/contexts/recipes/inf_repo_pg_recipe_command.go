@@ -57,7 +57,7 @@ func newPostgresUnitOfWork(db *sql.DB) *postgresUnitOfWork {
 
 func (u *postgresUnitOfWork) Do(
 	ctx context.Context,
-	work func(context.Context, recipeUpdateRepository) error,
+	work func(context.Context, recipeCommandRepository) error,
 ) (err error) {
 	tx, err := u.db.BeginTx(ctx, nil)
 	if err != nil {

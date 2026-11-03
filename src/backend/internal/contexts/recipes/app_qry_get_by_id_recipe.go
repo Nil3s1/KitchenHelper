@@ -29,15 +29,11 @@ type RecipeReadModel struct {
 	Images      []string               `json:"images"`
 }
 
-type getByIDRecipeRepository interface {
-	getByID(context.Context, string) (RecipeReadModel, error)
-}
-
 type GetByIDRecipeHandler struct {
-	repository getByIDRecipeRepository
+	repository recipeQueryRepository
 }
 
-func newGetByIDRecipeHandler(repository getByIDRecipeRepository) *GetByIDRecipeHandler {
+func newGetByIDRecipeHandler(repository recipeQueryRepository) *GetByIDRecipeHandler {
 	return &GetByIDRecipeHandler{repository: repository}
 }
 

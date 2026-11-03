@@ -6,27 +6,24 @@ import (
 	"testing"
 )
 
-type testGetByIDRecipeRepository struct {
+type testRecipeQueryRepository struct {
 	id     string
-	result RecipeReadModel
+	byID   RecipeReadModel
+	all    GetAllRecipesReadModel
 }
 
-func (r *testGetByIDRecipeRepository) getByID(_ context.Context, id string) (RecipeReadModel, error) {
+func (r *testRecipeQueryRepository) getByID(_ context.Context, id string) (RecipeReadModel, error) {
 	r.id = id
-	return r.result, nil
+	return r.byID, nil
 }
 
-type testGetAllRecipesRepository struct {
-	result GetAllRecipesReadModel
-}
-
-func (r testGetAllRecipesRepository) getAll(context.Context) (GetAllRecipesReadModel, error) {
-	return r.result, nil
+func (r *testRecipeQueryRepository) getAll(context.Context) (GetAllRecipesReadModel, error) {
+	return r.all, nil
 }
 
 func TestGetByIDRecipeHandlerReturnsQueryProjection(t *testing.T) {
 	expected := RecipeReadModel{ID: "recipe-id", Name: "Suppe", Version: 2}
-	repository := &testGetByIDRecipeRepository{result: expected}
+	repository := &testRecipeQueryRepository{byID: expected}
 	handler := newGetByIDRecipeHandler(repository)
 
 	result, err := handler.Handle(context.Background(), GetByIDRecipeQuery{ID: expected.ID})
@@ -40,7 +37,7 @@ func TestGetByIDRecipeHandlerReturnsQueryProjection(t *testing.T) {
 
 func TestGetAllRecipesHandlerReturnsQueryProjections(t *testing.T) {
 	expected := GetAllRecipesReadModel{{ID: "recipe-id", Name: "Suppe", Version: 2}}
-	handler := newGetAllRecipesHandler(testGetAllRecipesRepository{result: expected})
+	handler := newGetAllRecipesHandler(&testRecipeQueryRepository{all: expected})
 
 	result, err := handler.Handle(context.Background(), GetAllRecipesQuery{})
 	if err != nil {

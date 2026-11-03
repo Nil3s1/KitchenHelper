@@ -19,10 +19,10 @@ type IngredientInput struct {
 }
 
 type AddRecipeHandler struct {
-	repository recipeCreateRepository
+	repository recipeCommandRepository
 }
 
-func newAddRecipeHandler(repository recipeCreateRepository) *AddRecipeHandler {
+func newAddRecipeHandler(repository recipeCommandRepository) *AddRecipeHandler {
 	return &AddRecipeHandler{repository: repository}
 }
 
