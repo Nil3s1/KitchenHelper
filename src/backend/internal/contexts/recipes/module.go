@@ -8,7 +8,8 @@ import (
 type Module struct {
 	addRecipe    *addRecipeHandler
 	updateRecipe *updateRecipeHandler
-	queries      recipeQueryRepository
+	getRecipe    *getByIDRecipeHandler
+	listRecipes  *getAllRecipesHandler
 }
 
 // NewModule wires the application API to PostgreSQL without starting a transport.
@@ -16,10 +17,12 @@ type Module struct {
 func NewModule(db *sql.DB) *Module {
 	commandRepository := newPostgresCommandRepository(db)
 	unitOfWork := newPostgresUnitOfWork(db)
+	queryRepository := newPostgresQueryRepository(db)
 	return &Module{
 		addRecipe:    newAddRecipeHandler(commandRepository),
 		updateRecipe: newUpdateRecipeHandler(unitOfWork),
-		queries:      newPostgresQueryRepository(db),
+		getRecipe:    newGetByIDRecipeHandler(queryRepository),
+		listRecipes:  newGetAllRecipesHandler(queryRepository),
 	}
 }
 
@@ -32,9 +35,9 @@ func (m *Module) UpdateRecipe(ctx context.Context, command UpdateRecipeCommand) 
 }
 
 func (m *Module) GetRecipe(ctx context.Context, id string) (RecipeReadModel, error) {
-	return m.queries.getByID(ctx, id)
+	return m.getRecipe.Handle(ctx, id)
 }
 
 func (m *Module) ListRecipes(ctx context.Context) ([]RecipeReadModel, error) {
-	return m.queries.getAll(ctx)
+	return m.listRecipes.Handle(ctx)
 }

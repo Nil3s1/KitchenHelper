@@ -95,7 +95,10 @@ func TestModuleQueriesReturnDTOsAndForwardContext(t *testing.T) {
 		Tags: []string{}, Ingredients: []IngredientReadModel{}, Images: []string{},
 	}
 	repository := &testRecipeQueryRepository{byID: expected, all: []RecipeReadModel{expected}}
-	module := &Module{queries: repository}
+	module := &Module{
+		getRecipe:   newGetByIDRecipeHandler(repository),
+		listRecipes: newGetAllRecipesHandler(repository),
+	}
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -121,7 +124,10 @@ func TestModuleQueriesReturnDTOsAndForwardContext(t *testing.T) {
 func TestModuleQueriesReturnErrors(t *testing.T) {
 	for _, expected := range []error{ErrNotFound, errors.New("query failed")} {
 		repository := &testRecipeQueryRepository{err: expected}
-		module := &Module{queries: repository}
+		module := &Module{
+			getRecipe:   newGetByIDRecipeHandler(repository),
+			listRecipes: newGetAllRecipesHandler(repository),
+		}
 		recipe, err := module.GetRecipe(context.Background(), "missing")
 		if !errors.Is(err, expected) || !reflect.DeepEqual(recipe, RecipeReadModel{}) {
 			t.Fatalf("GetRecipe() = %#v, %v; want zero result, %v", recipe, err, expected)

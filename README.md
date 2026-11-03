@@ -14,7 +14,7 @@ docker compose up --build
 - Recipes API: <http://localhost:8080/api/v1/recipes>
 - MinIO console: <http://localhost:9001> (`kitchenhelper` / `kitchenhelper-local`)
 
-The database migrator runs after PostgreSQL becomes healthy and before the backend starts. Nginx serves the frontend and proxies `/api/` requests to the backend. The backend exposes a Recipes application API independently of HTTP. Its command methods delegate to use-case handlers; simple reads return DTOs through an injected query port without pass-through query handlers. Shared application contracts live in `app_command.go` and `app_query.go`; the context remains one flat Go package.
+The database migrator runs after PostgreSQL becomes healthy and before the backend starts. Nginx serves the frontend and proxies `/api/` requests to the backend. The backend exposes a Recipes application API independently of HTTP. Every command and query operation delegates to its own concrete application handler. Query handlers return read-model DTOs through an injected query port without loading domain aggregates. Shared application contracts live in `app_command.go` and `app_query.go`; the context remains one flat Go package.
 
 Recipe image references are stored in the `images` array; MinIO is available as the local S3-compatible storage service, but application uploads and asset retrieval are not yet wired to it.
 
@@ -45,6 +45,8 @@ func addSoup(ctx context.Context, db *sql.DB) (recipes.Recipe, error) {
 ```
 
 The snippet uses `context`, `database/sql`, and `kitchenhelper/backend/internal/contexts/recipes`. Direct calls return application errors such as `recipes.ErrValidation` and `recipes.ErrNotFound`, which callers can inspect with `errors.Is`. Successful commands return domain values; reads return DTOs without loading domain aggregates.
+
+All callers use the same path: application module -> command/query handler -> repository port -> PostgreSQL adapter. Query handlers remain private, while the public module methods and result DTOs remain accessible. The lookup handler accepts an ID directly; the parameterless list handler needs no empty query struct. Named query inputs can be introduced when filters or other related parameters are needed.
 
 HTTP is attached separately:
 

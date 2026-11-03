@@ -12,25 +12,6 @@ import (
 	"time"
 )
 
-type testRecipeQueryRepository struct {
-	ctx  context.Context
-	id   string
-	byID RecipeReadModel
-	all  []RecipeReadModel
-	err  error
-}
-
-func (r *testRecipeQueryRepository) getByID(ctx context.Context, id string) (RecipeReadModel, error) {
-	r.ctx = ctx
-	r.id = id
-	return r.byID, r.err
-}
-
-func (r *testRecipeQueryRepository) getAll(ctx context.Context) ([]RecipeReadModel, error) {
-	r.ctx = ctx
-	return r.all, r.err
-}
-
 func TestHTTPQueryRoutesReturnDTOs(t *testing.T) {
 	createdAt := time.Date(2026, 11, 3, 10, 0, 0, 0, time.UTC)
 	recipe := RecipeReadModel{
@@ -68,7 +49,10 @@ func TestHTTPQueryRoutesReturnDTOs(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			repository := &testRecipeQueryRepository{byID: recipe, all: test.all}
-			module := &Module{queries: repository}
+			module := &Module{
+				getRecipe:   newGetByIDRecipeHandler(repository),
+				listRecipes: newGetAllRecipesHandler(repository),
+			}
 			handler := module.HTTPHandler()
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
@@ -114,7 +98,11 @@ func TestHTTPQueryRoutesMapErrors(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			module := &Module{queries: &testRecipeQueryRepository{err: test.err}}
+			repository := &testRecipeQueryRepository{err: test.err}
+			module := &Module{
+				getRecipe:   newGetByIDRecipeHandler(repository),
+				listRecipes: newGetAllRecipesHandler(repository),
+			}
 			handler := module.HTTPHandler()
 			response := httptest.NewRecorder()
 

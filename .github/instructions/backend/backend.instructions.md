@@ -26,7 +26,7 @@ Use these prefixes for files in a flat context package:
 - `app_cmd_<action>_<entity>.go`: A write use case and its input/handler.
 - `app_command.go`: Shared command inputs/mapping and application-owned command ports, including a context-local Unit of Work when needed.
 - `app_query.go`: Related query ports and shared read-model DTOs. Do not hide shared declarations in one individual query's file; split ports and models into focused files only when their size warrants it.
-- `app_qry_<action>_<entity>.go`: A read use case with application behavior that warrants a handler, such as authorization or orchestration; not a mandatory file per read operation.
+- `app_qry_<action>_<entity>.go`: One read use case and its concrete application handler, with a named query input only when needed.
 - `inf_repo_pg_*_command.go`: PostgreSQL command-side persistence adapters and database-specific models.
 - `inf_repo_pg_*_query.go`: PostgreSQL query-side persistence adapters and query projections.
 - `inf_repo_sqlite_*.go`: SQLite adapters, only when that database is implemented.
@@ -44,7 +44,9 @@ Do not create placeholder files or adapters for technologies that are not in use
 - Map transport input to application input and application results to transport output at explicit boundaries.
 - Command use cases should create or load domain aggregates when needed to enforce business invariants, then persist them through command-side ports.
 - Query use cases should retrieve purpose-built query DTOs/projections directly from query-side ports. Do not load and map domain aggregates for a read that does not invoke domain behavior.
-- For a simple read with no application orchestration, the public application method may delegate directly to a query port. Transport adapters call the application API, not repositories or implementation handlers. Keep SQL and concrete persistence dependencies out of transport adapters; do not add a query handler or query-input type solely to forward a method call.
+- Every distinct command and query use case has a concrete application handler, including simple reads that initially only delegate to a query port. This is a repository architecture convention, not a Go language requirement. Public application methods delegate to these handlers, never directly to repository ports.
+- Use query inputs according to need: `Handle(ctx, id)` for a single lookup and `Handle(ctx)` for a parameterless list are appropriate. Introduce a named query struct for related filters, sorting, pagination, or multiple parameters when it improves clarity; do not require empty query structs.
+- Transport adapters call the application API, not repositories or implementation handlers. Keep SQL and concrete persistence dependencies out of transport adapters and application handlers.
 - Keep application operations independent of request/response transport types. HTTP, MCP, and direct Go callers use the same operations so that domain validation, transactions, and any application policies cannot be bypassed by choosing another transport.
 - Expose transport integration separately, for example `Module.HTTPHandler() http.Handler` implemented in the HTTP adapter file. Creating a module or obtaining a handler must not start a server. Do not add a transport adapter until it is needed.
 - Use an ordinary DTO slice for a list unless a separate result type adds metadata or meaningful behavior.
@@ -61,13 +63,14 @@ Do not create placeholder files or adapters for technologies that are not in use
 - The command repository includes all operations needed by write workflows, including loading aggregates, existence checks, and concurrency checks as well as persistence. Command/query separation does not forbid reads required to perform a command correctly.
 - Query ports return DTOs/projections for lookup, listing, filtering, and other implemented reads. Reads that actually need domain behavior should use an application use case with an appropriate aggregate-loading port instead.
 - Add methods when required by implemented behavior, not speculative CRUD completeness. Reuse an existing port when it remains cohesive; do not add redundant wrapper interfaces or duplicate adapters.
-- Inject repository ports into application handlers or the application facade. Transport adapters consume the public application API. Application behavior must not depend on concrete infrastructure; constructor wiring may choose concrete adapters.
-- Keep the public facade small and explicit: it delegates commands to their handlers and simple reads to query ports. These methods provide a stable caller-facing boundary, not a reason to duplicate handler logic or introduce another handler layer. Internal handlers need not be exported.
+- Inject repository ports into application handlers. Transport adapters consume the public application API. Application behavior must not depend on concrete infrastructure; constructor wiring may choose concrete adapters.
+- Keep the public facade small and explicit: it delegates both commands and queries to their respective handlers. Constructors wire repositories into handlers; the facade does not retain repository ports for direct use by its operations. Keep implementation handlers private and their application behavior out of the facade.
+- Concrete structs with constructors and `Handle` methods are sufficient. Do not add a generic mediator, base handler, handler interface per use case, or separate repository implementation per query without a concrete requirement.
 - Database ownership stays with the caller that opens it. Module construction wires the existing connection without opening, closing, or taking ownership of it; make the selected persistence technology explicit rather than claiming the constructor is database-agnostic.
 - Keep command-side and query-side repositories logically distinct even when both use the same database, schema, table, or persistence technology. Their implementations may share a connection or low-level helpers. A shared physical database does not require a separate read database.
 - Separate read storage or projections are optional scaling/consistency choices, not prerequisites for command/query separation.
 - Keep transport-specific validation and decoding in the transport adapter; keep business invariants in the domain and enforce them for every use case.
-- Keep a focused handler for use cases with application behavior. Do not combine unrelated use cases into a large handler, but do not require handlers that only forward arguments and results.
+- Keep one focused handler per distinct implemented use case. A delegation-only handler is allowed to preserve the uniform command/query structure; do not invent business logic to justify it or combine unrelated use cases into a large handler.
 
 ## 5. Transactions and Unit of Work
 
@@ -107,7 +110,8 @@ Use `src/backend/internal/shared/` for context-independent backend behavior and 
 - Test query-side projections directly, including that query operations return the expected DTO without requiring domain aggregate mapping.
 - Test direct application API calls independently of transport setup, including domain validation, command results, query DTOs, context/parameter propagation, and error propagation.
 - Include tests from an external Go test package (`<context>_test`) to verify that the constructor, commands, results, and transport attachment are actually accessible to callers without relying on unexported identifiers.
-- For reads without application handlers, test transport routes through the same module API backed by a query-port test double: request context and parameters, response DTO/JSON shape, list ordering and empty arrays, and error mapping. Do not keep delegation-only tests for removed handlers.
+- Test query handlers through their query ports, including DTO results, context/parameter propagation, list ordering and empty collections, and error propagation.
+- Test transport routes through the same module API and handlers backed by port test doubles: request context and parameters, response DTO/JSON shape, list ordering and empty arrays, and error mapping.
 - Test shared packages independently of any bounded context; test context-specific mapping in the owning adapter.
 - Put tests requiring PostgreSQL, multiple contexts, or the complete running application under `tests/backend/` or the corresponding central `tests/` area.
 - Use test-first development where practical, while prioritizing meaningful behavioral coverage over prescribed test-writing order.
