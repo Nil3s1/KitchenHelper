@@ -1,0 +1,62 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: kitchenhelper
+      POSTGRES_USER: kitchenhelper
+      POSTGRES_PASSWORD: kitchenhelper
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U kitchenhelper -d kitchenhelper"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  database:
+    build:
+      context: ./src/database
+    environment:
+      DATABASE_URL: postgres://kitchenhelper:kitchenhelper@postgres:5432/kitchenhelper?sslmode=disable
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+  backend:
+    build:
+      context: ./src/backend
+    environment:
+      DATABASE_URL: postgres://kitchenhelper:kitchenhelper@postgres:5432/kitchenhelper?sslmode=disable
+      HTTP_ADDR: :8080
+    ports:
+      - "8080:8080"
+    depends_on:
+      database:
+        condition: service_completed_successfully
+
+  frontend:
+    build:
+      context: ./src/frontend
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
+
+  minio:
+    image: minio/minio:latest
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: kitchenhelper
+      MINIO_ROOT_PASSWORD: kitchenhelper-local
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio_data:/data
+
+volumes:
+  postgres_data:
+  minio_data:
